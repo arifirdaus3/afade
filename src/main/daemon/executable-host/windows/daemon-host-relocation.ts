@@ -68,8 +68,8 @@ function currentBuildFingerprint(
   return observed?.entrySourcePath === sources.entrySourcePath ? observed.fingerprint : null
 }
 
-// Keep runtimes out of roaming storage; match the NSIS uninstall root in config/nsis/orca-installer-hooks.nsh.
-const LOCAL_HOST_ROOT_NAME = 'Orca'
+// Keep Afade runtimes separate from Orca and out of roaming storage.
+const LOCAL_HOST_ROOT_NAME = 'Afade'
 
 // Match getDaemonEntryPath() so relocation copies the same entry the install runtime would fork.
 function resolveEntrySourcePath(resourcesPath: string, observedEntryPath?: string): string {

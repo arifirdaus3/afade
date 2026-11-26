@@ -18,13 +18,14 @@ export const RELEASE_CHANNEL_LABELS: Readonly<Record<ReleaseChannel, string>> = 
   adhoc: 'Adhoc'
 }
 
-/** Keep dev tags out of the 10-entry main releases feed, where hourlies would evict stable/RC updates. */
-export const HOURLY_RELEASE_REPO = 'stablyai/orca-hourly'
-export const DAILY_RELEASE_REPO = 'stablyai/orca-daily'
-export const ADHOC_RELEASE_REPO = 'stablyai/orca-adhoc'
-export const MAIN_RELEASE_REPO = 'stablyai/orca'
+/** All app update channels use the fork's releases. */
+export const MAIN_RELEASE_REPO = 'arifirdaus3/afade'
+export const UPSTREAM_DATA_REPO = 'stablyai/orca'
+export const HOURLY_RELEASE_REPO = MAIN_RELEASE_REPO
+export const DAILY_RELEASE_REPO = MAIN_RELEASE_REPO
+export const ADHOC_RELEASE_REPO = MAIN_RELEASE_REPO
 
-/** The dev channels, each published to its own repo rather than the main one. */
+/** Development channels retain their existing version and platform rules. */
 const DEDICATED_REPO_CHANNELS = ['hourly', 'daily', 'adhoc'] as const
 
 export type DedicatedRepoChannel = (typeof DEDICATED_REPO_CHANNELS)[number]
@@ -41,8 +42,7 @@ export function isReleaseChannel(value: unknown): value is ReleaseChannel {
   return typeof value === 'string' && RELEASE_CHANNELS.includes(value as ReleaseChannel)
 }
 
-/** True for channels published outside the main repo. The updater reports these
- *  as a distinct source so a pinned dev build is never mistaken for a release. */
+/** Treat development channels as distinct sources so pinned builds retain their channel rules. */
 export function hasDedicatedReleaseRepo(channel: ReleaseChannel): channel is DedicatedRepoChannel {
   return (DEDICATED_REPO_CHANNELS as readonly ReleaseChannel[]).includes(channel)
 }
@@ -174,7 +174,7 @@ export function getVersionChannel(version: string): ReleaseChannel | null {
   return normalized.includes('-') ? 'rc' : 'stable'
 }
 
-/** Dev tags need their publishing repo or links 404. Missing versions use the releases list; latest can fail during GitHub API degradation. */
+/** Missing versions use the releases list; latest can fail during GitHub API degradation. */
 export function getReleaseNotesUrlForVersion(version: string | null): string {
   const channel = version ? getVersionChannel(version) : null
   const repo = channel ? getReleaseRepoForChannel(channel) : MAIN_RELEASE_REPO

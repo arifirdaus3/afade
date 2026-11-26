@@ -1,5 +1,5 @@
 import { PanelsTopLeft } from 'lucide-react'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { lazyWithRetry } from '@/app-shell/startup/lazy-with-retry'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -56,6 +56,35 @@ function attachSidewaysWheel(el: HTMLDivElement | null): (() => void) | undefine
 
 export type StatusBarProps = {
   floatingTerminalOpen: boolean
+}
+
+function AfadeVersionSegment(): React.JSX.Element {
+  const [version, setVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void window.api.updater.getVersion().then(
+      (appVersion) => {
+        if (active) {
+          setVersion(appVersion)
+        }
+      },
+      () => {
+        if (active) {
+          setVersion('unknown')
+        }
+      }
+    )
+    return () => {
+      active = false
+    }
+  }, [])
+
+  return (
+    <span className="ml-auto shrink-0 text-muted-foreground tabular-nums" aria-hidden="true">
+      {`AFADE${version ? ` ${version}` : ''}`}
+    </span>
+  )
 }
 
 export function StatusBarSurface({
@@ -165,6 +194,8 @@ export function StatusBarSurface({
           )}
         </div>
       </div>
+
+      <AfadeVersionSegment />
 
       <StatusBarVisibilityMenu controller={controller} />
     </div>

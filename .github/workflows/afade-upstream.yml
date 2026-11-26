@@ -1,0 +1,133 @@
+name: Afade upstream update
+
+on:
+  schedule:
+    - cron: '19 20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: afade-upstream-update
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    if: github.repository == 'arifirdaus3/afade'
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      ORCA_BACKGROUND_LAUNCH: '1'
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Merge latest upstream stable release
+        id: merge
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$(gh api repos/stablyai/orca/releases/latest --jq .tag_name)"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected stable release tag: $tag"
+            exit 1
+          fi
+          git config core.longpaths true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          base="$(git rev-parse HEAD)"
+          git fetch --no-tags https://github.com/stablyai/orca.git "refs/tags/$tag"
+          upstream="$(git rev-parse 'FETCH_HEAD^{commit}')"
+          echo "Upstream: $tag ($upstream)" >> "$GITHUB_STEP_SUMMARY"
+          if git merge-base --is-ancestor "$upstream" "$base"; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            echo 'The fork already contains this release.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if ! git merge --no-ff --no-edit "$upstream"; then
+            echo '::error::The upstream merge has conflicts; resolve them manually before retrying.'
+            exit 1
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Set up pnpm
+        if: steps.merge.outputs.changed == 'true'
+        uses: pnpm/setup@v2
+        with:
+          install: false
+
+      - name: Set up Node.js
+        if: steps.merge.outputs.changed == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+
+      - name: Install dependencies
+        if: steps.merge.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm -C mobile install --frozen-lockfile
+
+      - name: Check changed code and related tests
+        if: steps.merge.outputs.changed == 'true'
+        shell: bash
+        env:
+          BASE: ${{ steps.merge.outputs.base }}
+        run: pnpm check:changed "--base=$BASE" --timeout=60
+
+      - name: Build and publish Windows release
+        if: steps.merge.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm build:win --publish always
+
+      - name: Prepare source record
+        if: steps.merge.outputs.changed == 'true'
+        shell: bash
+        env:
+          BASE: ${{ steps.merge.outputs.base }}
+          TAG: ${{ steps.merge.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! compgen -G 'dist/*.exe' > /dev/null; then
+            echo '::error::The build did not produce a Windows installer.'
+            exit 1
+          fi
+          mkdir -p afade-review
+          git branch afade-candidate HEAD
+          git bundle create afade-review/candidate.bundle refs/heads/afade-candidate "^$BASE"
+          git diff --stat "$BASE" HEAD > afade-review/change-summary.txt
+          printf 'Base: %s\nUpstream release: %s\nCandidate: %s\n' "$BASE" "$TAG" "$(git rev-parse HEAD)" > afade-review/build-info.txt
+          echo 'Build and checks passed. The Windows installer and update metadata have been published as an Afade GitHub release.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sync tested source to Afade main
+        if: steps.merge.outputs.changed == 'true'
+        shell: bash
+        run: git push origin HEAD:${{ github.event.repository.default_branch }}
+
+      - name: Upload source record
+        if: steps.merge.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: afade-candidate-${{ steps.merge.outputs.tag }}
+          path: |
+            afade-review/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report failure
+        if: failure()
+        shell: bash
+        run: echo 'Update stopped. Check the failed step for merge conflicts, validation errors, build errors, or release publishing errors.' >> "$GITHUB_STEP_SUMMARY"

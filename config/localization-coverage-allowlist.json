@@ -1,5 +1,12 @@
 [
   {
+    "filePath": "src/renderer/src/components/status-bar/StatusBarSurface.tsx",
+    "kind": "jsx-expression",
+    "text": "AFADE",
+    "dynamic": true,
+    "count": 1
+  },
+  {
     "filePath": "src/renderer/src/components/settings/appearance/appearance-search.ts",
     "kind": "object-property:keywords",
     "text": "Idioma",

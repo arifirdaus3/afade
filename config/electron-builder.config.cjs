@@ -90,9 +90,6 @@ const {
   verifyAppImageNodeRuntimeServesPty
 } = require('./scripts/desktop-distribution/linux/appimage-node-runtime.cjs')
 const {
-  signWindowsUninstallerViaSignPath
-} = require('./scripts/desktop-distribution/windows/windows-uninstaller-signing.cjs')
-const {
   buildMacShipItScheduling
 } = require('./scripts/desktop-distribution/macos/macos-shipit-scheduling.cjs')
 
@@ -131,7 +128,7 @@ const devChannelRepo = isHourlyChannel
     : isAdhocChannel
       ? 'orca-adhoc'
       : null
-const appId = 'com.stablyai.orca'
+const appId = 'dev.afade.desktop'
 const featureWallResources = {
   from: 'resources/onboarding/feature-wall',
   to: 'onboarding/feature-wall'
@@ -269,14 +266,16 @@ const ORCA_MAC_TEAM_ID = '6CX3WHS9HZ'
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
   appId,
-  productName: 'Orca',
-  protocols: [{ name: 'Orca', schemes: ['orca'] }],
+  productName: 'Afade',
   toolsets: { appimage: '1.0.3' },
-  ...(devChannelBuildVersion
-    ? { extraMetadata: { version: devChannelBuildVersion } }
-    : localBuildVersion
-      ? { extraMetadata: { version: localBuildVersion } }
-      : {}),
+  extraMetadata: {
+    name: 'afade',
+    ...(devChannelBuildVersion
+      ? { version: devChannelBuildVersion }
+      : localBuildVersion
+        ? { version: localBuildVersion }
+        : {})
+  },
   directories: {
     buildResources: 'resources/build'
   },
@@ -619,15 +618,7 @@ module.exports = {
     }
   },
   win: {
-    executableName: 'Orca',
-    // SignPath signs Windows installers after packaging, so set release publisherName explicitly.
-    // Unsigned dev channels omit it or updater signature checks reject dev updates and return to stable.
-    // Sign hook signs nothing: it relays transient NSIS uninstaller files to CI SignPath; unset relay env leaves local/dev builds inert.
-    signtoolOptions: {
-      sign: signWindowsUninstallerViaSignPath,
-      ...(isWinDevChannel ? {} : { publisherName: 'SignPath Foundation' })
-    },
-    ...(isWinDevChannel ? { verifyUpdateCodeSignature: false } : {}),
+    executableName: 'Afade',
     extraResources: [
       ...commonExtraResources,
       ...windowsRuntimeResources,
@@ -661,13 +652,10 @@ module.exports = {
     ]
   },
   nsis: {
-    artifactName: 'orca-windows-setup.${ext}',
+    artifactName: 'afade-windows-setup.${ext}',
     shortcutName: '${productName}',
     uninstallDisplayName: '${productName}',
-    createDesktopShortcut: 'always',
-    // One NSIS include hosts update-guarded daemon cleanup and additive markdown Open With registration.
-    // Avoid fileAssociations: it would steal default .md ownership; see the include’s header.
-    include: resolve(__dirname, 'nsis', 'orca-installer-hooks.nsh')
+    createDesktopShortcut: 'always'
   },
   mac: {
     // Alternate rank preserves Finder’s default; one entry per extension because app-builder globs the value as a string.
@@ -855,10 +843,9 @@ module.exports = {
   npmRebuild: true,
   publish: {
     provider: 'github',
-    owner: 'stablyai',
-    repo: devChannelRepo ?? 'orca',
-    // Keep main-repo releases draft until release-cut verifies all assets; early --publish always would expose missing Windows installers.
-    releaseType: devChannelRepo ? 'prerelease' : 'draft'
+    owner: 'arifirdaus3',
+    repo: 'afade',
+    releaseType: devChannelRepo ? 'prerelease' : 'release'
   }
 }
 
